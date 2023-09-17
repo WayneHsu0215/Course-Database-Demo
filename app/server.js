@@ -3,9 +3,22 @@ import sql from 'mssql';
 import controllers from '../controllers/index.js';
 import viteExpress from 'vite-express';
 import session from 'express-session';
+import path from 'path';
+import url from 'url';
+
+const __filename = url.fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 const app = express();
 app.use(express.json());
+app.use('/documents', express.static(path.join(__dirname, 'documents')));
+app.get('/documents/B12.docx', (req, res) => {
+    // 使用 path.join 確保路徑正確
+    res.sendFile(path.join(__dirname, '../documents/B12.docx'));
+});
+
+
 
 app.use(session({
     secret: 'yourSecretKey',

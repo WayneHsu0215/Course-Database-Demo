@@ -36,7 +36,7 @@ const App = () => {
             <Routes>
                 <Route path="/" element={<Navigate to="/root"/>}/>
                 <Route path="/root" element={<Root/>}/>
-                <Route path="/ntunhssu" element={<Ntunhssu />}/>
+                <Route path="/ntunhssu" element={<Layout><Ntunhssu /></Layout>}/>
                 <Route path="/TranList" element={<Layout><TransList /></Layout>} />
             </Routes>
         </BrowserRouter>
