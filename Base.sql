@@ -2,7 +2,7 @@
 USE master
 -- 檢查資料庫是否存在
 IF DB_ID ( 'BANK' ) IS NOT NULL
-  DROP DATABASE BANK;
+    DROP DATABASE BANK;
 GO
 -- 新建資料庫
 CREATE DATABASE BANK
@@ -30,11 +30,11 @@ CREATE TABLE Customer
     UP_User varchar(20)
         PRIMARY KEY (ID)
 )
-    GO
+GO
 
 DECLARE @CURRENT_TS datetimeoffset = GETDATE()
 INSERT INTO Customer
-  (ID, PWD, Lname,FName,BDate,Sex,Address,City,Country,UP_Date,UP_User)
+(ID, PWD, Lname,FName,BDate,Sex,Address,City,Country,UP_Date,UP_User)
 VALUES('0', HASHBYTES('SHA2_512',N'123'),'CY', 'Lien', '19120101', 'M', 'Neihu', 'Taipei', 'Taiwan', @CURRENT_TS, '0');
 INSERT INTO Customer
 (ID, PWD,Lname,FName,BDate,Sex,Address,City,Country,UP_Date,UP_User)
@@ -103,7 +103,7 @@ CREATE TABLE LOG_SEQ(
                         SDATE varchar(8) NOT NULL PRIMARY KEY, -- 當天的log紀錄
                         LOG_COUNT varchar(6) NOT NULL --當天一共有多少筆log
 )
-    GO
+GO
 
 SELECT * FROM LOG_SEQ
 SELECT * FROM Customer
