@@ -36,7 +36,7 @@ const config = {
     // server: process.env.DATABASE_SERVER,
     // database: process.env.DATABASE_NAME,
     user: 'sa',
-    password: 'YourStrong@Passw0rd',
+    password: '<YourStrong@Passw0rd>',
     server: 'localhost',
     database: 'BANK',
     options: {
