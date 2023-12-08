@@ -112,3 +112,35 @@ SELECT * FROM Trans
 
 SELECT AccID, TranID, CONVERT(varchar, TranTime, 23) AS TranTime, AtmID, TranType, TranNote, CONVERT(varchar, UP_DATETIME, 23) AS UP_DATETIME, UP_USR
 FROM Trans;
+
+CREATE TABLE Courses (
+                         ID NVARCHAR(50),
+                         Semester NVARCHAR(50),
+                         MainInstructorName NVARCHAR(100),
+                         SubjectCode NVARCHAR(50),
+                         DepartmentCode NVARCHAR(50),
+                         CoreCode NVARCHAR(50),
+                         SubjectGroup NVARCHAR(50),
+                         Grade  NVARCHAR(50),
+                         ClassGroup NVARCHAR(50),
+                         SubjectNameChinese NVARCHAR(500),
+                         SubjectNameEnglish NVARCHAR(500),
+                         InstructorName NVARCHAR(100),
+                         NumberOfStudents  NVARCHAR(50),
+                         NumberOfMaleStudents  NVARCHAR(50),
+                         NumberOfFemaleStudents  NVARCHAR(50),
+                         Credits  NVARCHAR(50),
+                         WeeksOfClasses  NVARCHAR(50),
+                         HoursPerWeek  NVARCHAR(50),
+                         CourseTypeCode NVARCHAR(50),
+                         CourseTypeName NVARCHAR(100),
+                         Location NVARCHAR(100),
+                         Weekday NVARCHAR(50),
+                         ClassPeriods NVARCHAR(100),
+                         TimetableNotes NVARCHAR(2000),
+                         CourseSummaryChinese NVARCHAR(1000),
+                         CourseSummaryEnglish NVARCHAR(2000)
+);
+GO
+
+select * from Courses

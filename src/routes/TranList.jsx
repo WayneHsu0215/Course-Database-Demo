@@ -11,7 +11,7 @@ function TransList() {
     const {loggedIn, updateLoggedInStatus} = useContext(AuthContext);  // 使用 updateLoggedInStatus 而不是 setLoggedIn
     const [transData, setTransData] = useState([]);
     const [searchTranID, setSearchTranID] = useState('');
-    const [searchedTrans, setSearchedTrans] = useState(null);
+    const [searchedTrans, setSearchedTrans] = useState(Rnull);
 
     const checkLoginStatus = async () => {
         try {
