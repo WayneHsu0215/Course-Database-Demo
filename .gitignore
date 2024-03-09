@@ -1,4 +1,6 @@
 # Logs
+controllers/Upload
+controllers/DicomFiles
 logs
 *.log
 npm-debug.log*
