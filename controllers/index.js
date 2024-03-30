@@ -1,5 +1,8 @@
 /* eslint-disable no-unused-vars */
-import { Router } from "express";
+import {Router} from "express";
+
+
+
 const router = Router();
 import base64 from 'base64-js';
 import axios from 'axios';
@@ -34,23 +37,28 @@ async function fetchMetadata(studiesID, seriesID) {
         const extractedData = {};
 
         const requiredTags = [
+            "00080016",//SOP Class UID
+            "00080018",//SOP Instance UID
             "00080020",
             "00080030",
             "00080050",
+            "00080070",
             "00080090",
             "00081140",
             "00100020",
             "00100030",
             "00100040",
-            "0020000D",
+            "0020000D",//Study Instance UID
+            "0020000E",//Series Instance UID
             "00200011",
             "00200013",
+            "00200052",
             "00100010"
         ];
 
         requiredTags.forEach(tag => {
             if (metadata[0][tag]) {
-                extractedData[tag] = { value: metadata[0][tag] };
+                extractedData[tag] = {value: metadata[0][tag]};
             }
         });
 
@@ -72,7 +80,7 @@ const convertBase64 = (items) => items.map(item => {
         return [lat, lon];
     });
 
-    return {
+    const base64Obj = {
         "0040A180": {
             "vr": "US",
             "Value": [1]
@@ -82,11 +90,13 @@ const convertBase64 = (items) => items.map(item => {
             "InlineBinary": getEncodedData(parsedCoordinates)
         },
         "0066002F": {"vr": "SQ"},
-        "00660040": {
-            "vr": "OL",
-            "InlineBinary": "AQAAAA=="
-        },
         "00660030": {"vr": "SQ"},
+        ...((item.type === 'POLYLINE' || item.type === 'POLYGON') ? {
+            "00660040": {
+                "vr": "OL",
+                "InlineBinary": "AQAAAA=="
+            }
+        } : {}),
         "006A0003": {
             "vr": "UI",
             "Value": ["2.25.114374900112750469872241075842855539572"]
@@ -99,21 +109,15 @@ const convertBase64 = (items) => items.map(item => {
                 {
                     "00080100": {
                         "vr": "SH",
-                        "Value": [
-                            "2681000"
-                        ]
+                        "Value": ["2681000"]
                     },
                     "00080102": {
                         "vr": "SH",
-                        "Value": [
-                            "SCT"
-                        ]
+                        "Value": ["SCT"]
                     },
                     "00080104": {
                         "vr": "LO",
-                        "Value": [
-                            "Anatomical Stucture"
-                        ]
+                        "Value": ["Anatomical Stucture"]
                     }
                 }
             ]
@@ -124,21 +128,15 @@ const convertBase64 = (items) => items.map(item => {
                 {
                     "00080100": {
                         "vr": "SH",
-                        "Value": [
-                            "98790000"
-                        ]
+                        "Value": ["98790000"]
                     },
                     "00080102": {
                         "vr": "SH",
-                        "Value": [
-                            "SCT"
-                        ]
+                        "Value": ["SCT"]
                     },
                     "00080104": {
                         "vr": "LO",
-                        "Value": [
-                            "Nucleus"
-                        ]
+                        "Value": ["Nucleus"]
                     }
                 }
             ]
@@ -147,13 +145,21 @@ const convertBase64 = (items) => items.map(item => {
         "006A000D": {"vr": "CS", "Value": ["YES"]},
         "00700023": {"vr": "CS", "Value": [item.type]}
     };
-})
 
 
+    if (item.type === 'POLYLINE' || item.type === 'POLYGON') {
+        base64Obj["00660040"] = {
+            "vr": "OL",
+            "InlineBinary": "AQAAAA=="
+        };
+    }
+
+    return base64Obj;
+});
 
 
-import { fileURLToPath } from 'url';
-import { exec } from 'child_process';
+import {fileURLToPath} from 'url';
+import {exec} from 'child_process';
 
 
 // 将 import.meta.url 转换为文件路径
@@ -185,7 +191,7 @@ function convertJsonToDicom(jsonFilePath, outputDir) {
 
 // 确保目录存在
 if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true }); // 添加 { recursive: true } 以确保父目录被创建
+    fs.mkdirSync(uploadDir, {recursive: true}); // 添加 { recursive: true } 以确保父目录被创建
 }
 
 function generateFileName() {
@@ -197,8 +203,9 @@ function generateFileName() {
 const dicomOutputDir = path.join(__dirname, 'DicomFiles');
 // 确保 DICOM 文件的输出目录存在
 if (!fs.existsSync(dicomOutputDir)) {
-    fs.mkdirSync(dicomOutputDir, { recursive: true });
+    fs.mkdirSync(dicomOutputDir, {recursive: true});
 }
+
 async function saveTemplate(template) {
     const fileName = generateFileName();
     const jsonFilePath = path.join(uploadDir, fileName);
@@ -224,31 +231,44 @@ async function saveTemplate(template) {
     }
 }
 
+import FormData from 'form-data';
+async function uploadDicomFile(dicomFilePath) {
+    try {
+        const formData = new FormData();
+        formData.append('Flies', fs.createReadStream(dicomFilePath));
 
-function uploadDicomFile(dicomFilePath) {
-    return new Promise((resolve, reject) => {
-        // 构造上传命令
-        const command = `dcmsend -v -aet LIENSCU -aec RACCOONQRSCP 140.131.93.145 11112 "${dicomFilePath}"`;
-
-        exec(command, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`Error uploading DICOM file: ${error}`);
-                return reject(error);
-            }
-            console.log(`DICOM file uploaded: ${dicomFilePath}`);
-            console.log(stdout); // 输出详细信息
-            resolve(dicomFilePath);
+        const response = await axios.post('https://ditto.dicom.tw/dicom-web/studies', formData, {
+            headers: {
+                ...formData.getHeaders(),
+            },
         });
-    });
-}
 
+        console.log(`DICOM file uploaded: ${dicomFilePath}`);
+        console.log(response.data); // 输出详细信息
+        return dicomFilePath;
+    } catch (error) {
+        console.error(`Error uploading DICOM file: ${error}`);
+        throw error;
+    }
+}
 router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => {
-    const { studies, series } = req.params;
+    const {studies, series} = req.params;
 
     try {
-        const convertBase64Response = convertBase64(req.body);
+        const convertBase64Response = convertBase64(req.body.data); // 改為 req.body.data
 
         const metadata = await fetchMetadata(studies, series);
+
+        const getCurrentOID = () => {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            return `2.16.886.111.100513.6826.${year}${month}${day}${hours}${minutes}${seconds}`;
+        };
 
         const template = {
             "00020001": {
@@ -264,7 +284,7 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
             "00020003": {
                 "vr": "UI",
                 "Value": [
-                    "2.25.2313775834807224670296041689999443154438"
+                    getCurrentOID()
                 ]
             },
             "00020010": {
@@ -285,6 +305,8 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
                     "PYDICOM 2.2.2"
                 ]
             },
+            "00200052": metadata["00200052"].value,
+
             "00200060": {
                 "vr": "CS",
                 "Value": [
@@ -300,45 +322,40 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
             "00080018": {
                 "vr": "UI",
                 "Value": [
-                    "2.25.2313775834807224670296041689999443154438"
+                    getCurrentOID()
                 ]
             },
-            "00080020":
-            metadata["00080020"].value
-            ,
+            "00080020": metadata["00080020"].value,
             "00080023": {
                 "vr": "DA",
                 "Value": [
                     "20181003"
                 ]
             },
-            "00080030":
-            metadata["00080030"].value
-            ,
+            "00080030": metadata["00080030"].value,
             "00080033": {
                 "vr": "TM",
                 "Value": [
                     "141016.791188"
                 ]
             },
-            "00080050":
-            metadata["00080050"].value
-            ,
+
+            "00080050": req.body.NewAnnAccession ?
+
+                {
+                    "vr": "SH",
+                    "Value": [
+                        req.body.AccessionNumber
+                    ]
+                }:metadata["00080050"].value ,
             "00080060": {
                 "vr": "CS",
                 "Value": [
                     "ANN"
                 ]
             },
-            "00080070": {
-                "vr": "LO",
-                "Value": [
-                    "NCKU SmileLAB"
-                ]
-            },
-            "00080090": {
-                "vr": "PN"
-            },
+            "00080070": metadata["00080070"].value,
+            "00080090": metadata["00080090"].value,
             "00081090": {
                 "vr": "LO",
                 "Value": [
@@ -353,27 +370,12 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
                             "vr": "SQ",
                             "Value": [
                                 {
-                                    "00081150": {
-                                        "vr": "UI",
-                                        "Value": [
-                                            "1.2.840.10008.5.1.4.1.1.77.1.6"
-                                        ]
-                                    },
-                                    "00081155": {
-                                        "vr": "UI",
-                                        "Value": [
-                                            "1.3.6.1.4.1.5962.99.1.2251401802.152239158.1638633974346.8.0"
-                                        ]
-                                    }
+                                    "00081150": metadata["00080018"].value,
+                                    "00081155": metadata["00080016"].value
                                 }
                             ]
                         },
-                        "0020000E": {
-                            "vr": "UI",
-                            "Value": [
-                                "1.3.6.1.4.1.5962.99.1.2251401802.152239158.1638633974346.2.0"
-                            ]
-                        }
+                        "0020000E":  metadata["0020000E"].value
                     }
                 ]
             },
@@ -381,35 +383,15 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
                 "vr": "SQ",
                 "Value": [
                     {
-                        "00081150": {
-                            "vr": "UI",
-                            "Value": [
-                                "1.2.840.10008.5.1.4.1.1.77.1.6"
-                            ]
-                        },
-                        "00081155": {
-                            "vr": "UI",
-                            "Value": [
-                                "2.16.840.1.113995.3.110.3.0.10118.2000002.862753.6"
-                            ]
-                        }
+                        "00081150": metadata["00080018"].value,
+                        "00081155": metadata["00080016"].value
                     }
                 ]
             },
-            "00100010":
-            metadata["00100010"].value
-            ,
-            "00100020":
-            metadata["00100020"].value
-            ,
-            "00100030":
-
-            metadata["00100030"].value
-
-            ,
-            "00100040":
-            metadata["00100040"].value
-            ,
+            "00100010": metadata["00100010"].value,
+            "00100020": metadata["00100020"].value,
+            "00100030": metadata["00100030"].value,
+            "00100040": metadata["00100040"].value,
             "00181000": {
                 "vr": "LO",
                 "Value": [
@@ -422,28 +404,19 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
                     "1"
                 ]
             },
-            "0020000D": {
+            "0020000D": metadata["0020000D"].value,
+            "0020000E": req.body.NewAnnSeries ? {
                 "vr": "UI",
                 "Value": [
-                    "2.16.840.1.113995.3.110.3.0.10118.2000002.198526.54628"
+                    getCurrentOID()
                 ]
-            },
-            "0020000E": {
-                "vr": "UI",
-                "Value": [
-                    "2.25.26704667759946246400388453176183123"
-                ]
-            },
+            } : undefined, // 條件運算符設置 0020000E 的值
             "00200010": {
                 "vr": "SH",
                 "Value": [1]
             },
-            "00200011":
-            metadata["00200011"].value
-            ,
-            "00200013":
-            metadata["00200013"].value
-            ,
+            "00200011": metadata["00200011"].value,
+            "00200013": metadata["00200013"].value,
             "00480301": {
                 "vr": "CS",
                 "Value": [
@@ -459,7 +432,6 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
             "006A0002": {
                 "vr": "SQ",
                 "Value": convertBase64Response
-
             },
             "00700080": {
                 "vr": "CS",
@@ -473,17 +445,16 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
                     "SM_ANN"
                 ]
             }
-        }
+        };
 
         await saveTemplate(template);
         res.json(template);
     } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch metadata or convert Base64' });
+        res.status(500).json({error: 'Failed to fetch metadata or convert Base64'});
+        console.error(error);
     }
 });
 
 
-
 export default router;
-
 
