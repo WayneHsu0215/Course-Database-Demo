@@ -305,7 +305,9 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
                     "PYDICOM 2.2.2"
                 ]
             },
-            "00200052": metadata["00200052"].value,
+            ...(metadata["00200052"] && metadata["00200052"].value ? {
+                "00200052": metadata["00200052"].value
+            } : {}),
 
             "00200060": {
                 "vr": "CS",
@@ -355,7 +357,10 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
                 ]
             },
             "00080070": metadata["00080070"].value,
-            "00080090": metadata["00080090"].value,
+
+            ...(metadata["00080090"] && metadata["00080090"].value ? {
+                "00080090": metadata["00080090"].value
+            } : {}),
             "00081090": {
                 "vr": "LO",
                 "Value": [
@@ -415,8 +420,13 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
                 "vr": "SH",
                 "Value": [1]
             },
-            "00200011": metadata["00200011"].value,
-            "00200013": metadata["00200013"].value,
+
+            ...(metadata["00200011"] && metadata["00200011"].value ? {
+                "00200011": metadata["00200011"].value
+            } : {}),
+            ...(metadata["00200013"] && metadata["00200013"].value ? {
+                "00200013": metadata["00200013"].value
+            } : {}),
             "00480301": {
                 "vr": "CS",
                 "Value": [
