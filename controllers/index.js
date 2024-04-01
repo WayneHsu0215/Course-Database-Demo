@@ -42,6 +42,7 @@ async function fetchMetadata(studiesID, seriesID) {
             "00080020",
             "00080030",
             "00080050",
+            "00080060",
             "00080070",
             "00080090",
             "00081140",
@@ -269,6 +270,17 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
             const seconds = String(now.getSeconds()).padStart(2, '0');
             return `2.16.886.111.100513.6826.${year}${month}${day}${hours}${minutes}${seconds}`;
         };
+        console.log(req.body)
+
+        const condition = metadata["00080060"] === "SM";//這裏要改
+
+        const newSeriesUID = condition ? {
+            "vr": "UI",
+            "Value": [
+                getCurrentOID()
+            ]
+        } : metadata["0020000E"].value;
+
 
         const template = {
             "00020001": {
@@ -342,14 +354,13 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
                 ]
             },
 
-            "00080050": req.body.NewAnnAccession ?
+            "00080050": req.body.NewAnnAccession === "true" ? {
+                "vr": "SH",
+                "Value": [
+                    req.body.AccessionNumber
+                ]
+            } : metadata["00080050"].value,
 
-                {
-                    "vr": "SH",
-                    "Value": [
-                        req.body.AccessionNumber
-                    ]
-                }:metadata["00080050"].value ,
             "00080060": {
                 "vr": "CS",
                 "Value": [
@@ -410,12 +421,7 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
                 ]
             },
             "0020000D": metadata["0020000D"].value,
-            "0020000E": req.body.NewAnnSeries ? {
-                "vr": "UI",
-                "Value": [
-                    getCurrentOID()
-                ]
-            } : undefined, // 條件運算符設置 0020000E 的值
+            "0020000E": newSeriesUID,
             "00200010": {
                 "vr": "SH",
                 "Value": [1]
