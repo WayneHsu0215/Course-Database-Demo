@@ -272,7 +272,7 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
         };
         console.log(req.body)
 
-        const condition = metadata["00080060"] === "SM";//這裏要改
+        const condition = metadata["00080060"].value.Value[0] === "SM";
 
         const newSeriesUID = condition ? {
             "vr": "UI",
