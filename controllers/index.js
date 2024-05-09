@@ -2,7 +2,6 @@
 import {Router} from "express";
 
 
-
 const router = Router();
 import base64 from 'base64-js';
 import axios from 'axios';
@@ -26,19 +25,41 @@ function getEncodedData(coordinates) {
 }
 
 async function fetchMetadata(studiesID, seriesID) {
-    const url = `https://ditto.dicom.tw/dicom-web/studies/${studiesID}/series/${seriesID}/metadata`;
+    const Studiesurl = `https://ditto.dicom.tw/dicom-web/studies/${studiesID}/instances`;
+
+    console.log('Studiesurl:', Studiesurl);
 
     try {
-        const response = await axios.get(url);
+        const response = await axios.get(Studiesurl);
 
-        // 提取您需要的標籤
-        const metadata = response.data;
-        // console.log(response.data);
+        // 提取所有实例的 InstanceUID
+        const instanceUIDs = response.data.map(instance => instance["00080018"].Value[0]);
+
+        // 遍历每个 InstanceUID，获取其 metadata
+        const metadataPromises = instanceUIDs.map(async instanceUID => {
+            const url = `https://ditto.dicom.tw/dicom-web/studies/${studiesID}/series/${seriesID}/instances/${instanceUID}/metadata`;
+            console.log('URL:', url);
+            const metadataResponse = await axios.get(url);
+            return metadataResponse.data;
+        });
+
+        const allMetadata = (await Promise.all(metadataPromises)).flat();
+        console.log('allMetadata:', allMetadata);
+
+        const firstInstance00080008Value = allMetadata[0]["00080008"].Value;
+
+        if (firstInstance00080008Value === "NONE") {
+            console.error('No matching instances found.');
+            return null;
+        }
+
+        const metadata = allMetadata[0];
+
         const extractedData = {};
 
         const requiredTags = [
-            "00080016",//SOP Class UID
-            "00080018",//SOP Instance UID
+            "00080016", // SOP Class UID
+            "00080018", // SOP Instance UID
             "00080020",
             "00080030",
             "00080050",
@@ -49,8 +70,8 @@ async function fetchMetadata(studiesID, seriesID) {
             "00100020",
             "00100030",
             "00100040",
-            "0020000D",//Study Instance UID
-            "0020000E",//Series Instance UID
+            "0020000D", // Study Instance UID
+            "0020000E", // Series Instance UID
             "00200011",
             "00200013",
             "00200052",
@@ -58,11 +79,10 @@ async function fetchMetadata(studiesID, seriesID) {
         ];
 
         requiredTags.forEach(tag => {
-            if (metadata[0][tag]) {
-                extractedData[tag] = {value: metadata[0][tag]};
+            if (metadata[tag]) {
+                extractedData[tag] = { value: metadata[tag] };
             }
         });
-
 
         return extractedData;
     } catch (error) {
@@ -233,6 +253,7 @@ async function saveTemplate(template) {
 }
 
 import FormData from 'form-data';
+
 async function uploadDicomFile(dicomFilePath) {
     try {
         const formData = new FormData();
@@ -252,6 +273,7 @@ async function uploadDicomFile(dicomFilePath) {
         throw error;
     }
 }
+
 router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => {
     const {studies, series} = req.params;
 
@@ -386,12 +408,12 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
                             "vr": "SQ",
                             "Value": [
                                 {
-                                    "00081150": metadata["00080018"].value,
-                                    "00081155": metadata["00080016"].value
+                                    "00081150": metadata["00080016"].value,
+                                    "00081155": metadata["00080018"].value
                                 }
                             ]
                         },
-                        "0020000E":  metadata["0020000E"].value
+                        "0020000E": metadata["0020000E"].value
                     }
                 ]
             },
@@ -399,8 +421,8 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
                 "vr": "SQ",
                 "Value": [
                     {
-                        "00081150": metadata["00080018"].value,
-                        "00081155": metadata["00080016"].value
+                        "00081150": metadata["00080016"].value,
+                        "00081155": metadata["00080018"].value
                     }
                 ]
             },
