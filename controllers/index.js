@@ -27,33 +27,31 @@ function getEncodedData(coordinates) {
 async function fetchMetadata(studiesID, seriesID) {
     const Studiesurl = `https://ditto.dicom.tw/dicom-web/studies/${studiesID}/instances`;
 
-    console.log('Studiesurl:', Studiesurl);
+    //console.log('Studiesurl:', Studiesurl);
 
     try {
         const response = await axios.get(Studiesurl);
 
-        // 提取所有实例的 InstanceUID
         const instanceUIDs = response.data.map(instance => instance["00080018"].Value[0]);
 
-        // 遍历每个 InstanceUID，获取其 metadata
         const metadataPromises = instanceUIDs.map(async instanceUID => {
             const url = `https://ditto.dicom.tw/dicom-web/studies/${studiesID}/series/${seriesID}/instances/${instanceUID}/metadata`;
-            console.log('URL:', url);
+            //console.log('URL:', url);
             const metadataResponse = await axios.get(url);
             return metadataResponse.data;
         });
 
         const allMetadata = (await Promise.all(metadataPromises)).flat();
-        console.log('allMetadata:', allMetadata);
+        //console.log('allMetadata:', allMetadata);
 
-        const firstInstance00080008Value = allMetadata[0]["00080008"].Value;
+        const invalidInstanceWithNone = allMetadata.find(metadata => metadata["00080008"] && metadata["00080008"].Value && metadata["00080008"].Value.includes("NONE"));
+        const invalidInstanceWithVolume = allMetadata.find(metadata => metadata["00080008"] && metadata["00080008"].Value && metadata["00080008"].Value.includes("VOLUME"));
+        const invalidInstanceWithAnn = allMetadata.find(metadata => metadata["00080060"] && metadata["00080060"].Value && metadata["00080060"].Value.includes("ANN"));
 
-        if (firstInstance00080008Value === "NONE") {
+        if (!invalidInstanceWithNone && !invalidInstanceWithVolume && !invalidInstanceWithAnn) {
             console.error('No matching instances found.');
             return null;
         }
-
-        const metadata = allMetadata[0];
 
         const extractedData = {};
 
@@ -78,11 +76,25 @@ async function fetchMetadata(studiesID, seriesID) {
             "00100010"
         ];
 
-        requiredTags.forEach(tag => {
-            if (metadata[tag]) {
-                extractedData[tag] = { value: metadata[tag] };
-            }
-        });
+        if (invalidInstanceWithNone) {
+            requiredTags.forEach(tag => {
+                if (invalidInstanceWithNone[tag]) {
+                    extractedData[tag] = { value: invalidInstanceWithNone[tag] };
+                }
+            });
+        } else if (invalidInstanceWithVolume) {
+            requiredTags.forEach(tag => {
+                if (invalidInstanceWithVolume[tag]) {
+                    extractedData[tag] = { value: invalidInstanceWithVolume[tag] };
+                }
+            });
+        } else if (invalidInstanceWithAnn) {
+            requiredTags.forEach(tag => {
+                if (invalidInstanceWithAnn[tag]) {
+                    extractedData[tag] = { value: invalidInstanceWithAnn[tag] };
+                }
+            });
+        }
 
         return extractedData;
     } catch (error) {
@@ -292,7 +304,8 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
             const seconds = String(now.getSeconds()).padStart(2, '0');
             return `2.16.886.111.100513.6826.${year}${month}${day}${hours}${minutes}${seconds}`;
         };
-        console.log(req.body)
+        //console.log(req.body)
+
 
         const condition = metadata["00080060"].value.Value[0] === "SM";
 
