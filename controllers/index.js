@@ -11,18 +11,19 @@ import * as path from "path";
 /** TODO: deprecate this */
 
 
-function getEncodedData(coordinates) {
-    const dataBytes = new Uint8Array(coordinates.length * 8);
-    for (let i = 0; i < coordinates.length; i++) {
-        const [lat, lon] = coordinates[i];
-        const latBytes = new Float32Array([lat]);
-        const lonBytes = new Float32Array([lon]);
-        dataBytes.set(new Uint8Array(latBytes.buffer), i * 8);
-        dataBytes.set(new Uint8Array(lonBytes.buffer), i * 8 + 4);
-    }
-    const encodedData = base64.fromByteArray(dataBytes);
-    return encodedData;
-}
+
+// function getEncodedData(coordinates) {
+//     const dataBytes = new Uint8Array(coordinates.length * 8);
+//     for (let i = 0; i < coordinates.length; i++) {
+//         const [lat, lon] = coordinates[i];
+//         const latBytes = new Float32Array([lat]);
+//         const lonBytes = new Float32Array([lon]);
+//         dataBytes.set(new Uint8Array(latBytes.buffer), i * 8);
+//         dataBytes.set(new Uint8Array(lonBytes.buffer), i * 8 + 4);
+//     }
+//     const encodedData = base64.fromByteArray(dataBytes);
+//     return encodedData;
+// }
 
 async function fetchMetadata(studiesID, seriesID) {
     const Studiesurl = `https://ditto.dicom.tw/dicom-web/studies/${studiesID}/instances`;
@@ -101,35 +102,67 @@ async function fetchMetadata(studiesID, seriesID) {
         console.error('Error fetching metadata:', error);
         throw error;
     }
-}
-
-const convertBase64 = (items) => items.map(item => {
-    if (!item.type || !item.coordinates) {
-        throw new Error('Invalid item in the array');
+}const getEncodedData = (coordinates) => {
+    const dataBytes = new Uint8Array(coordinates.length * 8);
+    for (let i = 0; i < coordinates.length; i++) {
+        const [lat, lon] = coordinates[i];
+        const latBytes = new Float32Array([lat]);
+        const lonBytes = new Float32Array([lon]);
+        dataBytes.set(new Uint8Array(latBytes.buffer), i * 8);
+        dataBytes.set(new Uint8Array(lonBytes.buffer), i * 8 + 4);
     }
+    return base64.fromByteArray(dataBytes);
+};
 
-    const parsedCoordinates = item.coordinates.map(coord => {
-        const [lat, lon] = coord.replace(/[()]/g, '').split(',').map(parseFloat);
-        return [lat, lon];
+const convertBase64 = (items) => {
+    let combinedCoordinates = [];
+    let indexDict = {};
+    let currentIndex = 1; // Start from 1 instead of 0
+
+    items.forEach((item, idx) => {
+        if (!item.type || !item.coordinates) {
+            throw new Error('Invalid item in the array');
+        }
+
+        const parsedCoordinates = item.coordinates.map(coord => {
+            const [lat, lon] = coord.replace(/[()]/g, '').split(',').map(parseFloat);
+            return [lat, lon];
+        });
+
+        combinedCoordinates = combinedCoordinates.concat(parsedCoordinates);
+        indexDict[idx] = currentIndex;
+        currentIndex += parsedCoordinates.length * 2; // Each coordinate pair (lat, lon) counts as 2 units
     });
 
-    const base64Obj = {
+    const getEncodedIndex = (indexDict) => {
+        let byteArray = new Uint8Array(Object.keys(indexDict).length * 4);
+        let byteIndex = 0;
+        Object.values(indexDict).forEach(index => {
+            const indexBytes = new Uint32Array([index]);
+            byteArray.set(new Uint8Array(indexBytes.buffer), byteIndex);
+            byteIndex += 4;
+        });
+        return base64.fromByteArray(byteArray);
+    };
+
+    const encodedCoordinates = getEncodedData(combinedCoordinates);
+    const encodedIndex = getEncodedIndex(indexDict);
+
+    return [{
         "0040A180": {
             "vr": "US",
             "Value": [1]
         },
         "00660016": {
             "vr": "OF",
-            "InlineBinary": getEncodedData(parsedCoordinates)
+            "InlineBinary": encodedCoordinates
         },
         "0066002F": {"vr": "SQ"},
         "00660030": {"vr": "SQ"},
-        ...((item.type === 'POLYLINE' || item.type === 'POLYGON') ? {
-            "00660040": {
-                "vr": "OL",
-                "InlineBinary": "AQAAAA=="
-            }
-        } : {}),
+        "00660040": {
+            "vr": "OL",
+            "InlineBinary": encodedIndex
+        },
         "006A0003": {
             "vr": "UI",
             "Value": ["2.25.114374900112750469872241075842855539572"]
@@ -176,21 +209,9 @@ const convertBase64 = (items) => items.map(item => {
         },
         "006A000C": {"vr": "UL", "Value": [1]},
         "006A000D": {"vr": "CS", "Value": ["YES"]},
-        "00700023": {"vr": "CS", "Value": [item.type]}
-    };
-
-
-    if (item.type === 'POLYLINE' || item.type === 'POLYGON') {
-        base64Obj["00660040"] = {
-            "vr": "OL",
-            "InlineBinary": "AQAAAA=="
-        };
-    }
-
-    return base64Obj;
-});
-
-
+        "00700023": {"vr": "CS", "Value": [items[0].type]} // Assuming all items have the same type
+    }];
+};
 import {fileURLToPath} from 'url';
 import {exec} from 'child_process';
 
@@ -290,9 +311,15 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
     const {studies, series} = req.params;
 
     try {
+        // const data = fs.readFileSync('output11_modified.json', 'utf8');
+        // const jsonData = JSON.parse(data);
+        // const convertBase64Response = convertBase64(jsonData.data);
+        //
         const convertBase64Response = convertBase64(req.body.data); // 改為 req.body.data
 
         const metadata = await fetchMetadata(studies, series);
+
+        console.log(metadata);
 
         const getCurrentOID = () => {
             const now = new Date();
@@ -505,6 +532,35 @@ router.post('/SaveAnnData/studies/:studies/series/:series', async (req, res) => 
         console.error(error);
     }
 });
+
+router.post('/color', (req, res) => {
+    const inputData = req.body;
+
+    if (inputData.data && Array.isArray(inputData.data)) {
+        const item = inputData.data[0]; // 假設只處理第一個 item
+        if (item.color && item.color.length === 3) {
+            const [L, a, b] = item.color;
+
+            const L16 = Math.round((L / 100) * 0xFFFF);
+            const a16 = Math.round(((a + 128) / 255) * 0xFFFF);
+            const b16 = Math.round(((b + 128) / 255) * 0xFFFF);
+
+            const dicomTag = {
+                "0062000D": {
+                    "vr": "US",
+                    "Value": [L16, a16, b16]
+                }
+            };
+
+            res.json(dicomTag);
+        } else {
+            res.status(400).json({ error: 'Invalid color format' });
+        }
+    } else {
+        res.status(400).json({ error: 'Invalid input format' });
+    }
+});
+
 
 
 export default router;
